@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SuperComUserTasks_.Models;
+using SuperComUserTasks_.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,6 +15,21 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+// Configure CORS
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(builder =>
+    {
+        builder.AllowAnyOrigin()
+               .AllowAnyHeader()
+               .AllowAnyMethod();
+    });
+});
+
+
+// Add UserService
+builder.Services.AddScoped<UserService>();
+builder.Services.AddScoped<TaskService>();
 
 var app = builder.Build();
 
@@ -25,6 +41,9 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+// Enable CORS
+app.UseCors();
 
 app.UseAuthorization();
 

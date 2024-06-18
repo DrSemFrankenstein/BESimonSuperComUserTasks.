@@ -2,6 +2,10 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SuperComUserTasks_.Models;
+using SuperComUserTasks_.Services;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 using Task = SuperComUserTasks_.Models.Task;
 
 namespace SuperComUserTasks_.Controllers
@@ -10,47 +14,38 @@ namespace SuperComUserTasks_.Controllers
     [ApiController]
     public class TasksController : ControllerBase
     {
-        private readonly AppDbContext _context;
+        private readonly TaskService _taskService;
 
-        public TasksController(AppDbContext context)
+        public TasksController(TaskService taskService)
         {
-            _context = context;
+            _taskService = taskService;
         }
 
         // GET: api/Tasks
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Task>>> GetTasks()
         {
-            return await _context.Tasks.ToListAsync();
+            var tasks = await _taskService.GetTasksAsync();
+            return Ok(tasks);
         }
 
         // GET: api/Tasks/5
         [HttpGet("{id}")]
         public async Task<ActionResult<Task>> GetTask(int id)
         {
-            var task = await _context.Tasks.FindAsync(id);
-
+            var task = await _taskService.GetTaskByIdAsync(id);
             if (task == null)
             {
                 return NotFound();
             }
-
-            return task;
+            return Ok(task);
         }
 
         // POST: api/Tasks
         [HttpPost]
         public async Task<ActionResult<Task>> PostTask(CreateTaskDto createTaskDto)
         {
-            var task = new Task
-            {
-                UserId = createTaskDto.UserId,
-                Name = createTaskDto.Name,
-                Description = createTaskDto.Description
-            };
-            _context.Tasks.Add(task);
-            await _context.SaveChangesAsync();
-
+            var task = await _taskService.CreateTaskAsync(createTaskDto);
             return CreatedAtAction(nameof(GetTask), new { id = task.Id }, task);
         }
 
@@ -58,29 +53,11 @@ namespace SuperComUserTasks_.Controllers
         [HttpPut("{id}")]
         public async Task<IActionResult> PutTask(int id, Task task)
         {
-            if (id != task.Id)
+            var success = await _taskService.UpdateTaskAsync(id, task);
+            if (!success)
             {
                 return BadRequest();
             }
-
-            _context.Entry(task).State = EntityState.Modified;
-
-            try
-            {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!TaskExists(id))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
-            }
-
             return NoContent();
         }
 
@@ -88,21 +65,12 @@ namespace SuperComUserTasks_.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteTask(int id)
         {
-            var task = await _context.Tasks.FindAsync(id);
-            if (task == null)
+            var success = await _taskService.DeleteTaskAsync(id);
+            if (!success)
             {
                 return NotFound();
             }
-
-            _context.Tasks.Remove(task);
-            await _context.SaveChangesAsync();
-
             return NoContent();
-        }
-
-        private bool TaskExists(int id)
-        {
-            return _context.Tasks.Any(e => e.Id == id);
         }
     }
 }

@@ -9,15 +9,13 @@ using Task = System.Threading.Tasks.Task;
 
 namespace SuperComUserTasks_.Services
 {
-    public class UsersService
+    public class UserService
     {
         private readonly AppDbContext _context;
-        private readonly IConfiguration _configuration;
 
-        public UsersService(AppDbContext context, IConfiguration configuration)
+        public UserService(AppDbContext context)
         {
             _context = context;
-            _configuration = configuration;
         }
 
         public async Task<IEnumerable<User>> GetUsersAsync()
@@ -30,34 +28,50 @@ namespace SuperComUserTasks_.Services
             return await _context.Users.FindAsync(id);
         }
 
-        public async Task UpdateUserAsync(int id, User user)
+        public async Task<User> GetUserByEmailAsync(string email)
+        {
+            return await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
+        }
+
+        public async Task<bool> UpdateUserAsync(int id, User user)
         {
             if (id != user.Id)
             {
-                throw new ArgumentException("User id mismatch");
+                return false;
             }
 
-            _context.Entry(user).State = EntityState.Modified;
+            var existingUser = await _context.Users.FindAsync(id);
+            if (existingUser == null)
+            {
+                return false;
+            }
+
+            if (_context.Users.Any(u => u.Email == user.Email && u.Id != id))
+            {
+                return false;
+            }
+
+            existingUser.Name = user.Name;
+            existingUser.Email = user.Email;
 
             try
             {
                 await _context.SaveChangesAsync();
+                return true;
             }
             catch (DbUpdateConcurrencyException)
             {
-                if (!UserExists(id))
-                {
-                    throw new KeyNotFoundException($"User with id {id} not found");
-                }
-                else
-                {
-                    throw;
-                }
+                return false;
             }
         }
 
         public async Task<User> CreateUserAsync(CreateUserDto createUserDto)
         {
+            if (_context.Users.Any(u => u.Email == createUserDto.Email))
+            {
+                return null; // Email conflict
+            }
+
             var user = new User
             {
                 Name = createUserDto.Name,
@@ -70,15 +84,13 @@ namespace SuperComUserTasks_.Services
             return user;
         }
 
-        public async Task DeleteUserAsync(int id)
+        public async Task<bool> DeleteUserAsync(int id, int defaultUserId)
         {
             var user = await _context.Users.FindAsync(id);
             if (user == null)
             {
-                throw new KeyNotFoundException($"User with id {id} not found");
+                return false;
             }
-
-            var defaultUserId = _configuration.GetValue<int>("AppSettings:DefaultUserId");
 
             var tasksToUpdate = await _context.Tasks.Where(t => t.UserId == id).ToListAsync();
             foreach (var task in tasksToUpdate)
@@ -89,11 +101,8 @@ namespace SuperComUserTasks_.Services
             await _context.SaveChangesAsync();
             _context.Users.Remove(user);
             await _context.SaveChangesAsync();
-        }
 
-        private bool UserExists(int id)
-        {
-            return _context.Users.Any(e => e.Id == id);
+            return true;
         }
     }
 }
